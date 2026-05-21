@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Project Unmute — Ember 14일 바이브 코딩</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1F0EE4; --blue-soft:#3E2CFF; --blue-hov:#1A0BC0;
+    --dark:#111111; --dark-2:#1A1A1A;
+    --white:#FFFFFF; --light:#F5F5F5;
+    --mid:#888888; --border:#E0E0E0; --border-dark:#333333;
+    --ice:#CADCFC;
+    --ease-out: cubic-bezier(.2,.7,.2,1);
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;background:#000;overflow:hidden;
+    font-family:"Pretendard","Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+  body{color:var(--dark)}
+  .deck{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  .stage{
+    width:min(100vw,calc(100vh * 16 / 9));
+    height:min(100vh,calc(100vw * 9 / 16));
+    position:relative;background:var(--white);overflow:hidden;
+    box-shadow:0 0 100px rgba(0,0,0,.4);
+  }
+
+  /* ── 슬라이드 전환 (horizontal slide) ── */
+  .slide{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    padding:6.4% 6.4% 4.5% 6.4%;
+    background:var(--white);
+    opacity:0;transform:translateX(80px);
+    transition:opacity .45s var(--ease-out), transform .55s var(--ease-out);
+    pointer-events:none;
+  }
+  .slide.dark{background:var(--dark);color:var(--white)}
+  .slide.active{opacity:1;transform:translateX(0);z-index:2;pointer-events:auto}
+  .slide.leaving-left{opacity:0;transform:translateX(-80px);z-index:1}
+  .slide.leaving-right{opacity:0;transform:translateX(80px);z-index:1}
+  .slide.entering-left{opacity:0;transform:translateX(-80px)}
+
+  /* 좌측 액센트 */
+  .slide.dark::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:1.5%;background:var(--blue);
+  }
+  /* 풋터 */
+  .footer{
+    position:absolute;left:0;right:0;bottom:0;height:5.6%;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 4%;font-family:"Inter",sans-serif;font-size:.78em;
+    letter-spacing:.18em;color:var(--mid);font-weight:600;
+  }
+  .slide:not(.dark) .footer::before{
+    content:"";position:absolute;left:4%;width:.4%;height:55%;background:var(--blue);
+  }
+  .slide:not(.dark) .footer{padding-left:5.2%}
+
+  /* 섹션 번호 / 타이틀 */
+  .sec{
+    font-family:"Inter",sans-serif;font-weight:700;
+    color:var(--blue);font-size:1.15em;letter-spacing:.04em;margin-bottom:1.2vh;
+  }
+  .slide.dark .sec{color:var(--ice)}
+  h1.title{font-size:5.4em;font-weight:800;line-height:1.05;margin:0 0 2.2vh 0;color:var(--white);letter-spacing:-.02em;}
+  h2.title{font-size:3.9em;font-weight:800;line-height:1.1;margin:0 0 1.5vh 0;color:var(--dark);letter-spacing:-.02em;}
+  .slide.dark h2.title{color:var(--white)}
+  h3.sub{font-size:1.55em;font-weight:500;color:var(--mid);margin:0;line-height:1.45;}
+  .slide.dark h3.sub{color:var(--ice)}
+
+  /* 타이틀 슬라이드 */
+  .title-slide .eyebrow{font-family:"Inter",sans-serif;font-weight:700;color:var(--blue);font-size:1.15em;letter-spacing:.18em;margin-bottom:3vh;}
+  .title-slide .speaker{margin-top:auto;color:var(--mid);font-family:"Inter",sans-serif;font-size:.95em;letter-spacing:.04em;}
+
+  /* ── stagger 등장 ── */
+  .anim{opacity:0;transform:translateY(18px);transition:opacity .55s var(--ease-out), transform .55s var(--ease-out);transition-delay:var(--d,0s)}
+  .slide.active .anim{opacity:1;transform:none}
+
+  /* W1~W4 카드 (이미지 카드) */
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:1.2vh 1.4vw;margin-top:3vh}
+  .week-card{
+    border:1px solid var(--border);padding:2.4vh 1.4vw;background:var(--white);
+    position:relative;display:flex;flex-direction:column;aspect-ratio:1.05/1;
+    transition:transform .25s var(--ease-out), box-shadow .25s var(--ease-out);
+  }
+  .week-card::before{content:"";position:absolute;left:0;right:0;top:0;height:.6vh;background:var(--blue)}
+  .week-card:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(0,0,0,.08)}
+  .week-card .wk{font-family:"Inter",sans-serif;font-weight:700;color:var(--blue);letter-spacing:.08em;font-size:.95em;margin-bottom:.6vh}
+  .week-card .wt{font-size:1.55em;font-weight:700;color:var(--dark);margin-bottom:.5vh}
+  .week-card .wd{font-size:.92em;color:var(--mid);margin-bottom:auto}
+  .week-card .week-ico{
+    margin-top:1vh;width:3.2vh;height:3.2vh;color:var(--blue);
+  }
+
+  /* ── M1~M5 모듈 흐름 (개선판: 아이콘 + 큰 카드) ── */
+  .modflow{
+    display:flex;align-items:stretch;gap:.6vw;margin-top:2.6vh;
+  }
+  .mod{
+    flex:1;background:var(--light);border:1px solid var(--border);
+    padding:2.4vh 1vw 2vh 1vw;
+    display:flex;flex-direction:column;align-items:flex-start;
+    position:relative;
+    transition:transform .25s var(--ease-out), box-shadow .25s var(--ease-out);
+  }
+  .mod:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,.06)}
+  .mod-ico-wrap{
+    width:5.4vh;height:5.4vh;border-radius:50%;
+    background:var(--blue);color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:1.6vh;
+  }
+  .mod-ico-wrap svg{width:2.9vh;height:2.9vh;stroke-width:2}
+  .mod .mk{font-family:"Inter",sans-serif;font-weight:700;color:var(--blue);letter-spacing:.08em;font-size:.9em;margin-bottom:.4vh}
+  .mod .mt{font-size:1.55em;font-weight:700;color:var(--dark);margin-bottom:.7vh}
+  .mod .md{font-size:.82em;color:#444;line-height:1.5;flex:1}
+  .arr{
+    align-self:center;width:1.6em;color:var(--blue);font-weight:700;font-size:1.6em;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+
+  /* 강조 바 */
+  .callout{margin-top:auto;background:var(--blue);color:var(--white);text-align:center;padding:1.6vh 0;font-size:.95em;font-weight:600;}
+  .callout.dark-bar{background:var(--dark)}
+  .callout.gray{background:var(--light);color:var(--dark);border:1px solid var(--border)}
+
+  /* 이전 가설 박스 */
+  .quote-box{margin-top:auto;background:var(--light);border:1px solid var(--border);padding:2.4vh 2vw;}
+  .quote-box .lbl{font-family:"Inter",sans-serif;font-size:.78em;font-weight:700;color:var(--mid);letter-spacing:.18em;margin-bottom:1vh;}
+  .quote-box .q{font-size:1.4em;font-style:italic;color:var(--dark);margin-bottom:1.6vh;line-height:1.45}
+  .quote-box .now{font-size:1.05em;color:var(--dark);line-height:1.55}
+  .quote-box .now b{color:var(--blue)}
+
+  /* 타임라인 (페이지 중앙 정렬) */
+  .timeline{margin:auto 0;position:relative;padding:0 2%}
+  .tl-line{position:absolute;left:5%;right:5%;top:50%;height:3px;background:var(--border)}
+  .tl-line-fill{position:absolute;left:5%;top:50%;height:3px;background:var(--blue);width:0;transition:width 1.2s var(--ease-out) .3s}
+  .slide.active .tl-line-fill{width:90%}
+  .tl-points{display:flex;justify-content:space-between;position:relative}
+  .tl-pt{flex:1;text-align:center;position:relative}
+  .tl-pt .dot{
+    width:1.8vh;height:1.8vh;border-radius:50%;background:var(--dark);
+    margin:0 auto;border:3px solid var(--white);position:relative;z-index:1;
+    box-shadow:0 0 0 0 rgba(31,14,228,0); transition: box-shadow .4s ease;
+  }
+  .tl-pt:last-child .dot{background:var(--blue)}
+  .slide.active .tl-pt:last-child .dot{box-shadow:0 0 0 8px rgba(31,14,228,.18)}
+  .tl-pt .date{font-family:"Inter",sans-serif;font-weight:700;letter-spacing:.1em;color:var(--mid);font-size:.88em;margin-bottom:1vh;}
+  .tl-pt .ttl{font-size:1.25em;font-weight:700;margin-top:1.2vh;color:var(--dark)}
+  .tl-pt .desc{font-size:.82em;color:var(--mid);margin-top:.5vh;line-height:1.4}
+
+  /* 대조 박스 (다크) */
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:1.6vw;margin-top:auto;margin-bottom:2vh}
+  .compare .box{padding:2.4vh 1.6vw;min-height:18vh}
+  .compare .left{background:var(--dark-2);border:1px solid var(--border-dark)}
+  .compare .right{background:var(--blue)}
+  .compare .lbl{font-family:"Inter",sans-serif;font-weight:700;font-size:.78em;color:var(--ice);letter-spacing:.18em;margin-bottom:1.6vh;}
+  .compare ul{margin:0;padding:0;list-style:none}
+  .compare li{font-size:.98em;line-height:1.65;color:var(--white);padding-left:1.2em;position:relative}
+  .compare li::before{content:"·";position:absolute;left:.2em;color:var(--ice)}
+
+  /* 4단계 깔때기 */
+  .funnel{margin-top:2.5vh;display:flex;flex-direction:column;gap:.9vh}
+  .fn-row{display:flex;align-items:center;gap:1.4vw}
+  .fn-num{
+    width:2.6vh;height:2.6vh;min-width:2.6vh;border-radius:50%;background:var(--dark);
+    color:var(--white);font-weight:700;display:flex;align-items:center;justify-content:center;
+    font-family:"Inter",sans-serif;font-size:.95em;
+  }
+  .fn-row:nth-child(1) .fn-num,
+  .fn-row:nth-child(4) .fn-num{background:var(--blue)}
+  .fn-ttl{font-size:1.2em;font-weight:700;color:var(--dark);min-width:36%}
+  .fn-desc{font-size:.92em;color:var(--mid);flex:1}
+
+  /* 6월 vs 7월 */
+  .vs{display:grid;grid-template-columns:1fr auto 1fr;gap:1.6vw;align-items:stretch;margin-top:2vh}
+  .vs .panel{padding:2.4vh 1.6vw;display:flex;flex-direction:column;min-height:30vh}
+  .vs .june{background:var(--light);border:1px solid var(--border)}
+  .vs .july{background:var(--blue);color:var(--white)}
+  .vs .lbl{font-family:"Inter",sans-serif;font-weight:700;font-size:.78em;letter-spacing:.18em;color:var(--mid);margin-bottom:1vh;}
+  .vs .july .lbl{color:var(--ice)}
+  .vs .h{font-size:2em;font-weight:700;margin-bottom:1vh}
+  .vs .filecode{font-family:"JetBrains Mono","Consolas",monospace;color:var(--blue);font-size:.88em;margin-bottom:1.4vh}
+  .vs .july .filecode{color:var(--white)}
+  .vs .body{font-size:.92em;line-height:1.7;flex:1}
+  .vs .body b{font-weight:700}
+  .vs .arrow{display:flex;align-items:center;justify-content:center;font-size:2.4em;color:var(--blue);font-weight:700}
+  .vs .big0{font-size:1.8em;font-weight:800;color:var(--white)}
+
+  /* 라이브 데모 전환 */
+  .demo-eyebrow{font-family:"Inter",sans-serif;font-weight:700;color:var(--blue);font-size:1.15em;letter-spacing:.26em;margin-bottom:2.5vh;}
+  .demo-channels{margin-top:auto;color:var(--mid);font-family:"Inter",sans-serif;font-size:.95em;}
+
+  /* 마무리 stat */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1.4vw;margin:3vh 0 3vh 0}
+  .stat-card{background:var(--dark-2);border:1px solid var(--border-dark);padding:2.4vh 1.6vw;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:22vh}
+  .stat-n{font-family:"Inter",sans-serif;font-weight:800;font-size:5.2em;color:var(--blue);line-height:1}
+  .stat-l{font-size:.95em;color:var(--ice);margin-top:1.2vh}
+  .stat-l .small{display:block;font-size:.82em;opacity:.8;margin-top:.2vh}
+  .wrap-quote{font-style:italic;color:var(--ice);font-size:1.1em;margin-bottom:1vh}
+  .wrap-tq{font-size:2.2em;font-weight:700;color:var(--white)}
+
+  /* ── 생태계 5요소 표 ── */
+  .eco-grid{display:grid;grid-template-columns:1.4fr 1.6fr 0.5fr 2fr;margin-top:2.5vh;border-top:1px solid var(--border)}
+  .eco-row{display:contents}
+  .eco-row > div{
+    padding:1.55vh 1vw;border-bottom:1px solid var(--border);font-size:.95em;
+    display:flex;align-items:center;
+  }
+  .eco-row.header > div{
+    font-family:"Inter",sans-serif;font-weight:700;font-size:.78em;
+    color:var(--mid);letter-spacing:.16em;background:transparent;padding-top:1vh;padding-bottom:1vh;
+  }
+  .eco-row .el{font-weight:700;color:var(--dark);font-size:1.05em}
+  .eco-row .desc{color:#444}
+  .eco-row .stat{font-family:"Inter",sans-serif;font-weight:800;font-size:1.4em;color:var(--mid)}
+  .eco-row .stat.ok{color:#10A36E}
+  .eco-row .stat.warn{color:#D9920C}
+  .eco-row .stat.bad{color:#D14444}
+  .eco-row .note{color:var(--mid);font-size:.88em}
+  .eco-row.focus > div{background:rgba(31,14,228,0.06);border-bottom:1px solid var(--blue)}
+  .eco-row.focus .el{color:var(--blue)}
+  .eco-row.focus .stat{color:var(--blue)}
+  .eco-row.focus .note{color:var(--blue);font-weight:600}
+
+  /* ── 서비스 정리 그리드 ── */
+  .svc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2vh 1.2vw;margin-top:2.5vh}
+  .svc-card{
+    border:1px solid var(--border);background:var(--white);
+    padding:2vh 1.1vw 1.6vh 1.1vw;display:flex;flex-direction:column;
+    transition:transform .25s var(--ease-out),box-shadow .25s var(--ease-out);
+    position:relative;min-height:15vh;
+  }
+  .svc-card:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(0,0,0,.06)}
+  .svc-head{display:flex;align-items:center;gap:.8vw;margin-bottom:.8vh}
+  .svc-ico{
+    width:4vh;height:4vh;border-radius:8px;
+    background:var(--light);color:var(--blue);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .svc-ico svg{width:2.4vh;height:2.4vh;stroke-width:2}
+  .svc-name{font-weight:700;color:var(--dark);font-size:1.15em}
+  .svc-role{font-family:"Inter",sans-serif;font-size:.7em;font-weight:700;color:var(--mid);letter-spacing:.15em;margin-top:.2vh}
+  .svc-desc{color:#444;font-size:.85em;line-height:1.5;margin-top:.4vh}
+  .svc-tag{
+    margin-top:auto;font-family:"JetBrains Mono","Consolas",monospace;
+    font-size:.72em;color:var(--blue);padding-top:.8vh;
+  }
+
+  /* 큰 stat (슬라이드 8 — 14일 타임라인) */
+  .big-stat{position:absolute;right:6%;top:14%;text-align:right}
+  .big-stat .n{font-family:"Inter",sans-serif;font-weight:800;color:var(--blue);font-size:8em;line-height:.9}
+  .big-stat .l{color:var(--mid);font-size:.9em;margin-top:.5vh}
+
+  /* ── 운영 흐름 테이블 (슬라이드: 한 주 자동 운영) ── */
+  .flow-table{width:100%;border-collapse:collapse;margin-top:2.4vh;font-size:.92em}
+  .flow-table th{
+    background:var(--dark);color:#fff;text-align:left;padding:1vh 1vw;
+    font-family:"Inter",sans-serif;font-size:.82em;font-weight:700;letter-spacing:.06em;
+  }
+  .flow-table td{padding:1.05vh 1vw;border-bottom:1px solid var(--border);color:#333;vertical-align:middle}
+  .flow-table tr:last-child td{border-bottom:none}
+  .flow-table .when{font-family:"JetBrains Mono","Consolas",monospace;font-weight:500;color:var(--dark);white-space:nowrap}
+  .flow-table .utc{color:var(--mid);font-size:.85em}
+  .badge{font-family:"Inter",sans-serif;font-weight:700;padding:.25vh .7vw;border-radius:5px;font-size:.8em;white-space:nowrap}
+  .badge.auto{background:rgba(31,14,228,.1);color:var(--blue)}
+  .badge.manual{background:rgba(184,80,66,.13);color:#B85042}
+  .who-bot{font-weight:700;color:var(--blue)}
+  .who-human{font-weight:700;color:#B85042}
+
+  /* ── 혜택·효과 카드 (슬라이드) ── */
+  .ben-hero{display:flex;align-items:baseline;gap:1vw;margin-top:2.5vh;margin-bottom:1vh}
+  .ben-hero .big{font-family:"Inter",sans-serif;font-weight:800;font-size:4.6em;color:var(--blue);line-height:1}
+  .ben-hero .cap{font-size:1.2em;color:var(--dark);font-weight:600}
+  .ben-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2vh 1.6vw;margin-top:1.5vh}
+  .ben-card{border:1px solid var(--border);border-left:4px solid var(--blue);padding:1.5vh 1.2vw;background:var(--white)}
+  .ben-card .bt{font-weight:700;color:var(--dark);font-size:1.05em;margin-bottom:.4vh}
+  .ben-card .bd{font-size:.9em;color:#555;line-height:1.45}
+  .ben-card .bd b{color:var(--blue)}
+
+  /* 노트 */
+  .notes{position:fixed;right:1vw;top:1vh;bottom:1vh;width:28vw;background:rgba(20,20,20,.95);color:#eee;padding:2vh 1.4vw;border-radius:8px;font-size:.92em;line-height:1.7;overflow:auto;display:none;z-index:50;border:1px solid #333;backdrop-filter:blur(6px);}
+  .notes.on{display:block}
+  .notes h4{margin:0 0 1vh 0;font-size:.85em;color:#8ab4ff;letter-spacing:.15em;font-weight:700}
+  .notes p{margin:0 0 1.2em 0;color:#ddd}
+
+  /* HUD */
+  .hud{position:fixed;left:0;right:0;bottom:0;height:6px;background:#000;z-index:30;}
+  .hud .bar{height:100%;background:var(--blue);width:0%;transition:width .35s var(--ease-out)}
+  .pageno{position:fixed;right:1vw;bottom:1.4vh;color:#888;font-family:"Inter",sans-serif;font-size:.85em;letter-spacing:.1em;z-index:31;}
+  .help{position:fixed;left:1vw;bottom:1.4vh;color:#666;font-family:"Inter",sans-serif;font-size:.78em;z-index:31;letter-spacing:.04em;}
+  .help b{color:#aaa}
+
+  .hl{color:var(--blue);font-weight:700}
+
+  @media (prefers-reduced-motion: reduce){
+    .slide,.anim,.tl-line-fill,.tl-pt:last-child .dot{transition:none !important}
+  }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+  <div class="stage" id="stage">
+
+    <!-- 1. 타이틀 -->
+    <section class="slide dark active title-slide" data-notes="안녕하세요, 미국사업파트의 현입니다. 오늘 5~7분 짧게, 제가 클로드라는 AI랑 14일 동안 만든 디스코드 봇 'Ember' 이야기를 들려드리려고 해요.@@한 줄 요약 — 비개발자인 제가, 클로드와 대화만 하면서 700줄짜리 디스코드 자동 운영 봇을 14일 만에 띄웠고, 그게 ABLUR 구독자 수에 진짜로 영향을 줄 수 있다는 이야기예요.@@조금 있다가 디스코드 화면 바로 띄워서 라이브로 보여드릴게요. 가볍게 시작해볼게요.">
+      <div class="eyebrow anim" style="--d:.05s">— 미국사업파트 / 사내 공유 —</div>
+      <h1 class="title anim" style="--d:.12s">Ember가 14일 만에<br>태어난 이야기</h1>
+      <h3 class="sub anim" style="--d:.22s">코드 한 줄 안 치고 만든 ABLUR 디스코드 캠페인 자동화 봇</h3>
+      <div class="speaker anim" style="--d:.34s">현 · 미국사업파트 리드 &nbsp;·&nbsp; 2026.05</div>
+      <div class="footer"><span>PROJECT UNMUTE · EMBER BOT</span><span></span></div>
+    </section>
+
+    <!-- 2. 문제 -->
+    <section class="slide" data-notes="먼저 우리가 풀려고 한 문제부터 보여드릴게요.@@ABLUR 디스코드, 멤버는 분명히 있는데 안 떠들어요. 신규는 진입하면 뭘 할지 모르고, OC 이벤트가 한 번 하면 끝나버리고, 결국 고인물끼리만 대화하는 상태.@@우리가 처음 깔았던 가설이 '디스코드 열어두면 알아서 떠들겠지'였는데, 그 가설이 정확히 깨졌어요. 그래서 이번 분기 OKR에서 디스코드 대화 참여율 5.4%를 8.1%까지 끌어올려야 하는 KR을 받았고, 그 도구가 필요했습니다.">
+      <div class="sec anim" style="--d:.05s">01</div>
+      <h2 class="title anim" style="--d:.1s">디스코드는 있는데,<br>사람들이 안 떠들어요.</h2>
+      <div class="quote-box anim" style="--d:.25s">
+        <div class="lbl">이전 가설</div>
+        <div class="q">"디스코드 채널만 열어두면, 멤버들이 알아서 콘텐츠를 만들고 떠들 거다."</div>
+        <div class="now"><b>현실:</b> 신규는 진입 후 뭘 할지 모르고, OC 이벤트는 1회성, 결국 고인물끼리만 대화.&nbsp; <b>디스코드 대화 참여율 5.4%</b>.</div>
+      </div>
+      <div class="footer"><span>PROJECT UNMUTE · EMBER BOT</span><span>2 / 14</span></div>
+    </section>
+
+    <!-- 3. 생태계 5요소 + 모닥불 선택 (NEW) -->
+    <section class="slide" data-notes="문제를 해결하기 전에 — '디스코드'를 하나의 생태계로 보고, 어떤 요소가 부족한지 먼저 분석했어요. 미니언 4월 킥오프 결과 자료에서 가져온 프레임입니다.@@5가지 요소 — 물·음식(베네핏), 공기·햇빛(관심사), 땅·길(플로우), 친구(동료 창작자), 모닥불(콘텐츠·이벤트). 현재 ABLUR 디스코드는 친구만 O 상태고 나머지는 △ 또는 X.@@그중 가장 시급한 게 모닥불이었어요. '멤버들이 매주 모여서 떠들 명분' 자체가 없는 거. 그래서 이번 분기 1순위 = 모닥불 만들기. 그 모닥불의 구체적인 형태가 다음 슬라이드의 4주 미션 사이클입니다.">
+      <div class="sec anim" style="--d:.05s">02</div>
+      <h2 class="title anim" style="--d:.1s">디스코드를 '생태계'로 보면<br>5개 요소가 필요했어요.</h2>
+      <h3 class="sub anim" style="--d:.18s">현재 상태를 점검하니 — 모닥불이 가장 비어있었습니다.</h3>
+      <div class="eco-grid anim" style="--d:.3s">
+        <div class="eco-row header"><div>요소</div><div>의미</div><div>현재</div><div>비고</div></div>
+        <div class="eco-row"><div class="el">물 · 음식</div><div class="desc">베네핏 (쿠폰·포인트)</div><div class="stat bad">X</div><div class="note">자동화 검토 필요</div></div>
+        <div class="eco-row"><div class="el">공기 · 햇빛</div><div class="desc">에이블러·에이콘 관심사</div><div class="stat warn">△</div><div class="note">상품 보러 오는 사람도 있음</div></div>
+        <div class="eco-row"><div class="el">땅 · 길</div><div class="desc">진입 플로우</div><div class="stat warn">△</div><div class="note">짰지만 보강 필요</div></div>
+        <div class="eco-row"><div class="el">친구</div><div class="desc">동료 창작자</div><div class="stat ok">O</div><div class="note">유일하게 갖춰진 요소</div></div>
+        <div class="eco-row focus"><div class="el">🔥 모닥불</div><div class="desc">콘텐츠 · 이벤트 · 모일 명분</div><div class="stat">X</div><div class="note">→ 이번 분기 1순위로 선택</div></div>
+      </div>
+      <div class="callout gray anim" style="--d:.7s">"매주 모일 명분"을 만드는 게 디스코드 활성화의 첫 번째 다리.</div>
+      <div class="footer"><span>PROJECT UNMUTE · EMBER BOT</span><span>3 / 14</span></div>
+    </section>
+
+    <!-- 4. 솔루션: 4주 사이클 -->
+    <section class="slide" data-notes="그래서 만든 게 Project Unmute, 그중에서도 매주 화요일에 자동으로 돌아가는 4주 미션 사이클이에요.@@W1은 텍스트+이미지로 OC 소개, W2는 작품 이미지, W3는 다른 사람 작품에 답글, W4는 ❤️ 받기.@@매주 화 오후 2시에 봇이 알아서 추첨해서 3명한테 $10 Points 자동 발급. 명예의 전당 채널에 박제까지 자동.@@멤버 입장에선 '매주 모닥불에 모이는' 명분이 생기는 거고, 우리 입장에선 4주짜리 활성화 엔진이 하나 생긴 거예요.">
+      <div class="sec anim" style="--d:.05s">02</div>
+      <h2 class="title anim" style="--d:.1s">그래서 — 매주 모이는 '모닥불'을 깔기로.</h2>
+      <h3 class="sub anim" style="--d:.18s">Project Unmute · 4주 미션 캠페인 사이클</h3>
+      <div class="grid-4">
+        <div class="week-card anim" style="--d:.28s">
+          <div class="wk">W1</div><div class="wt">OC 소개</div><div class="wd">텍스트 + 이미지</div>
+          <svg class="week-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+        </div>
+        <div class="week-card anim" style="--d:.36s">
+          <div class="wk">W2</div><div class="wt">작품 공개</div><div class="wd">이미지 출품</div>
+          <svg class="week-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </div>
+        <div class="week-card anim" style="--d:.44s">
+          <div class="wk">W3</div><div class="wt">서로 코멘트</div><div class="wd">Reply 활성화</div>
+          <svg class="week-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        </div>
+        <div class="week-card anim" style="--d:.52s">
+          <div class="wk">W4</div><div class="wt">❤ 투표</div><div class="wd">이미지 + 하트</div>
+          <svg class="week-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        </div>
+      </div>
+      <div class="callout dark-bar anim" style="--d:.6s">매주 화요일 14:00 EDT · 자동 추첨 · 3명 × $10 Points · 명예의 전당 박제</div>
+      <div class="footer"><span>PROJECT UNMUTE · EMBER BOT</span><span>4 / 14</span></div>
+    </section>
+
+    <!-- 4. Ember 5단계 흐름 (★ 아이콘 강화) -->
+    <section class="slide" data-notes="그 사이클을 진짜로 굴리는 게 Ember 봇입니다. 5개 모듈 M1부터 M5까지.@@멤버가 메시지 보내면 M1이 1초 안에 '이게 어느 주차, 어느 타입 출품인지' 자동 라벨링하고, M2가 구글 시트에 16개 컬럼으로 자동 기록. M3가 룰 위반이면 invalid 처리하고, 도배 의심이면 운영자 채널에 자동 알림.@@M4가 화요일 오후 2시 됐을 때 자동으로 발사, M5가 추첨하고 발표 메시지 띄우고 박제 채널에 이미지까지 박고 우승자한테 DM 보내고 다음 주 미션까지 자동 게시.@@그래서 운영자가 하는 일은 주 5분이에요. 운영자 채널에서 ✅ 한 번 누르는 거랑, 우승자한테 포인트 발급하는 것.">
+      <div class="sec anim" style="--d:.05s">03</div>
+      <h2 class="title anim" style="--d:.1s">Ember는 그 사이클을 24/7 굴립니다.</h2>
+      <h3 class="sub anim" style="--d:.18s">멤버 메시지 한 줄이 봇 안에서 5단계로 흘러갑니다.</h3>
+      <div class="modflow">
+
+        <!-- M1 감지 — 안테나/레이더 -->
+        <div class="mod anim" style="--d:.26s">
+          <div class="mod-ico-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12a10 10 0 0 1 20 0"/><path d="M5 12a7 7 0 0 1 14 0"/><path d="M8 12a4 4 0 0 1 8 0"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><path d="M12 13v8"/></svg>
+          </div>
+          <div class="mk">M1</div><div class="mt">감지</div>
+          <div class="md">메시지 캐치<br>주차·타입 자동 라벨링</div>
+        </div>
+        <div class="arr">›</div>
+
+        <!-- M2 기록 — 표/시트 -->
+        <div class="mod anim" style="--d:.32s">
+          <div class="mod-ico-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
+          </div>
+          <div class="mk">M2</div><div class="mt">기록</div>
+          <div class="md">Google Sheet에<br>16개 컬럼 자동 입력</div>
+        </div>
+        <div class="arr">›</div>
+
+        <!-- M3 필터 — 깔때기/방패 -->
+        <div class="mod anim" style="--d:.38s">
+          <div class="mod-ico-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+          </div>
+          <div class="mk">M3</div><div class="mt">필터</div>
+          <div class="md">룰 위반·도배 자동 차단<br>의심은 🚩 알림</div>
+        </div>
+        <div class="arr">›</div>
+
+        <!-- M4 스케줄 — 시계 -->
+        <div class="mod anim" style="--d:.44s">
+          <div class="mod-ico-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="mk">M4</div><div class="mt">스케줄</div>
+          <div class="md">매주 화 14:00 자동 발사<br>(6개 cron)</div>
+        </div>
+        <div class="arr">›</div>
+
+        <!-- M5 발표 — 트로피 -->
+        <div class="mod anim" style="--d:.5s">
+          <div class="mod-ico-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>
+          </div>
+          <div class="mk">M5</div><div class="mt">발표</div>
+          <div class="md">추첨 → 박제 → DM<br>다음 주 미션 게시</div>
+        </div>
+
+      </div>
+      <div class="callout anim" style="--d:.6s">운영자 인풋: <b>주 5분</b> &nbsp;( 운영자 채널에서 ✅ 한 번 + 우승자 포인트만 발급 )</div>
+      <div class="footer"><span>PROJECT UNMUTE · EMBER BOT</span><span>5 / 14</span></div>
+    </section>
+
+    <!-- 6. 한 주 자동 운영 흐름 (NEW) -->
+    <section class="slide" data-notes="앞에서 본 5개 모듈이, 한 주 동안 실제로 이 시각표대로 자동으로 돌아요.@@핵심은 색깔이에요. 파란색이 전부 자동 — Ember가 하는 거고, 빨간색 딱 두 개만 사람이 합니다. 화요일에 ✅ 한 번 누르는 거랑, 우승자한테 포인트 발급.@@발표 시각은 매주 화요일 오후 2시 미국 동부 시간, UTC로는 18시예요. 평일 업무시간이라 관리자가 응답하기 좋고, 그 한 시점에 '지난 주 발표'랑 '이번 주 미션 게시'가 동시에 나가게 설계했어요.@@그리고 봇은 24시간 켜져 있어서, 한국 새벽에 미국 멤버가 출품해도 그 즉시 잡습니다.">
+      <div class="sec anim" style="--d:.05s">04</div>
+      <h2 class="title anim" style="--d:.1s">Ember의 한 주 — 전부 자동으로 돕니다.</h2>
+      <h3 class="sub anim" style="--d:.18s">발표는 매주 화 14:00 미국 동부 (18:00 UTC). 사람이 손대는 건 ✅ 한 번뿐.</h3>
+      <table class="flow-table anim" style="--d:.3s">
+        <thead><tr><th>시각 (EDT)</th><th>UTC</th><th>일어나는 일</th><th>구분</th><th>실행</th></tr></thead>
+        <tbody>
+          <tr><td class="when">상시 24/7</td><td class="utc">—</td><td>출품 즉시 라벨링 · 시트 기록 · 룰 필터</td><td><span class="badge auto">자동</span></td><td class="who-bot">Ember</td></tr>
+          <tr><td class="when">매일 04:00</td><td class="utc">08:00</td><td>시트 ↔ 채널 동기화 (누락 복구)</td><td><span class="badge auto">자동</span></td><td class="who-bot">Ember</td></tr>
+          <tr><td class="when">화 09·11·13시</td><td class="utc">13·15·17</td><td>발표 게이트 알림 3회 (#mod-logs)</td><td><span class="badge auto">자동</span></td><td class="who-bot">Ember</td></tr>
+          <tr><td class="when">화 13~14시</td><td class="utc">—</td><td>#mod-logs에서 ✅ 발표 승인</td><td><span class="badge manual">수동</span></td><td class="who-human">관리자</td></tr>
+          <tr><td class="when">화 14:00</td><td class="utc">18:00</td><td>추첨 → 발표 → 박제 → 우승자 DM → 다음 미션 게시</td><td><span class="badge auto">자동</span></td><td class="who-bot">Ember</td></tr>
+          <tr><td class="when">발표 직후</td><td class="utc">—</td><td>우승자 $10 Points 발급</td><td><span class="badge manual">수동</span></td><td class="who-human">관리자</td></tr>
+        </tbody>
+      </table>
+      <div class="footer"><span>PROJECT UNMUTE · EMBER BOT</span><span>6 / 14</span></div>
+    </section>
+
+    <!-- 7. 혜택·효과 (NEW) -->
+    <section class="slide" data-notes="그래서 관리자가 실제로 쓰는 시간은 주 5분이에요. 화요일 ✅ 한 번 + 포인트 발급. 나머지는 전부 Ember가 자동으로.@@무중단 24/7이라 한국 새벽이든 주말이든 미국 멤버 출품을 즉시 처리하고요.@@이게 디스코드 대화 참여율 5.4%에서 8.1%로 올리는 이번 분기 KR에 직접 꽂혀요. '매주 모일 명분'이 리텐션을 만들고, Kai·Mia가 모이는 공간이 됩니다.@@그리고 콘셉트가 JSON으로 분리돼 있어서, 7월 OC 캠페인은 코드 한 줄도 안 바꿔요. 한 번 만들어두면 평생 재활용.">
+      <div class="sec anim" style="--d:.05s">05</div>
+      <h2 class="title anim" style="--d:.1s">그래서 — 관리자는 주 5분.</h2>
+      <div class="ben-hero anim" style="--d:.18s">
+        <span class="big">5분</span>
+        <span class="cap">/ 주 — ✅ 한 번 + 포인트 발급. 나머지는 전부 Ember가.</span>
+      </div>
+      <div class="ben-grid">
+        <div class="ben-card anim" style="--d:.28s"><div class="bt">🌙 무중단 24/7</div><div class="bd">Railway에서 항상 켜짐. <b>야간·주말 출품도 즉시 처리.</b></div></div>
+        <div class="ben-card anim" style="--d:.36s"><div class="bt">📈 핵심 KR 직격</div><div class="bd">디스코드 대화 참여율 <b>5.4% → 8.1%</b>에 직접 기여.</div></div>
+        <div class="ben-card anim" style="--d:.44s"><div class="bt">🔥 리텐션 엔진</div><div class="bd">"매주 모일 명분" → Kai·Mia 유입 + 주 1회 작업물 공유 습관.</div></div>
+        <div class="ben-card anim" style="--d:.52s"><div class="bt">♻️ 재사용</div><div class="bd">콘셉트는 JSON 분리 → <b>7월 OC 캠페인 코드 0줄 수정.</b></div></div>
+      </div>
+      <div class="footer"><span>PROJECT UNMUTE · EMBER BOT</span><span>7 / 14</span></div>
+    </section>
+
+    <!-- 8. 14일 타임라인 -->
+    <section class="slide" data-notes="이 봇을 만드는 데 14일 걸렸어요.@@5월 6일에 디스코드, GitHub, Railway, 구글 시트 셋업하고 'Hello' 메시지까지. 5월 7일에 메시지 감지하고 시트에 자동 기록 붙이고. 5월 12일에 어뷰징 필터랑 시간 스케줄러 6개 트리거 등록. 그리고 오늘 5월 20일에 자동 추첨·발표·박제·DM까지 다 붙여서 완성.@@5개 모듈, 700줄 코드, 그 사이에 만난 디버깅 함정이 50개쯤. 데드라인이 정확히 5월 20일이었는데, 그날 칼같이 완성. 사실 봇 개발자 중에 데드라인 진짜 지키는 사람 본 적 없거든요. (살짝 웃음)">
+      <div class="sec anim" style="--d:.05s">04</div>
+      <h2 class="title anim" style="--d:.1s">이걸 만드는 데 — 14일.</h2>
+      <div class="big-stat anim" style="--d:.18s"><div class="n">700</div><div class="l">줄 코드 · 5개 모듈 · 디버깅 함정 50개 통과</div></div>
+      <div class="timeline anim" style="--d:.3s">
+        <div class="tl-line"></div>
+        <div class="tl-line-fill"></div>
+        <div class="tl-points">
+          <div class="tl-pt"><div class="date">5/06</div><div class="dot"></div><div class="ttl">셋업 + Hello</div><div class="desc">디스코드 / GitHub / Railway / Sheet</div></div>
+          <div class="tl-pt"><div class="date">5/07</div><div class="dot"></div><div class="ttl">M1 + M2</div><div class="desc">메시지 감지 + 시트 자동 기록</div></div>
+          <div class="tl-pt"><div class="date">5/12</div><div class="dot"></div><div class="ttl">M3 + M4</div><div class="desc">어뷰징 필터 + 6개 cron</div></div>
+          <div class="tl-pt"><div class="date">5/20</div><div class="dot"></div><div class="ttl">M5 완성 🎉</div><div class="desc">자동 추첨 · 발표 · DM</div></div>
+        </div>
+      </div>
+      <div class="callout gray anim" style="--d:.7s">데드라인 5/20, <b class="hl">정확히 그날 완성.</b> &nbsp;<span style="color:var(--mid);font-style:italic">(데드라인을 진짜 지키는 봇 개발자, 본인 처음 봄)</span></div>
+      <div class="footer"><span>PROJECT UNMUTE · EMBER BOT</span><span>8 / 14</span></div>
+    </section>
+
+    <!-- 6. 바이브 코딩 (다크) -->
+    <section class="slide dark" data-notes="여기서 진짜 하고 싶은 얘기가 나옵니다.@@저는 14일 동안 코드를 한 줄도 직접 안 쳤어요. 클로드한테 '이거 해줘' 하면 코드 블록을 던져주고, 저는 그걸 복사해서 붙여넣는 거. 에러 나면 화면 캡처 보내고, 클로드가 'Python에서 if는 절대 혼자 못 있어요' 같이 개념까지 챙겨주면서 디버깅.@@제가 한 건 사실상 두 가지예요. 결정하는 거 — 이모지 ❤️ 하나만 카운트할지 모든 이모지 카운트할지, 호스팅 Railway로 갈지 Replit으로 갈지. 그리고 정정 질문 — '이거 기존 코드 교체예요, 추가예요?' 같은.@@이게 바이브 코딩이고요. 사실 무서운 점은 이거예요. 비개발자인 저도, 클로드와 페어로 일하면 14일 안에 운영 봇 하나를 손에 쥡니다.">
+      <div class="sec anim" style="--d:.05s">05</div>
+      <h2 class="title anim" style="--d:.1s" style="color:#fff">그런데 — 저는 코드를<br>한 줄도 직접 안 쳤어요.</h2>
+      <div class="compare">
+        <div class="box left anim" style="--d:.25s">
+          <div class="lbl">내가 한 일</div>
+          <ul>
+            <li>클로드한테 "이거 해줘" 요청</li>
+            <li>받은 코드 블록 복붙</li>
+            <li>에러 나면 화면 캡처 전송</li>
+            <li>정책 결정 (이모지 1개? 모두?)</li>
+            <li>"교체야 추가야?" 같은 정정 질문</li>
+          </ul>
+        </div>
+        <div class="box right anim" style="--d:.4s">
+          <div class="lbl">클로드(AI)가 한 일</div>
+          <ul>
+            <li>700줄 Python 코드 다 작성</li>
+            <li>에러 진단 + 한 줄 해설</li>
+            <li>함수 통째 교체로 들여쓰기 정리</li>
+            <li>운영 정책 옵션 비교 제안</li>
+            <li>"Python에서 if는 절대 혼자 못 있어요"</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer"><span style="color:#777">PROJECT UNMUTE · EMBER BOT</span><span style="color:#777">9 / 14 · Vibe Coding</span></div>
+    </section>
+
+    <!-- 7. 구독자 깔때기 -->
+    <section class="slide" data-notes="이게 ABLUR 구독자수에 어떻게 연결되냐.@@1단계, 모닥불이 깔리면 디스코드 대화 참여율이 5.4%에서 8.1%로 올라가요. 이게 우리 분기 KR이에요.@@2단계, 활발한 커뮤니티가 되면 핵심 페르소나 Kai (OC 스토리텔러)랑 Mia (웹툰 크리에이터)가 모이는 공간이 됩니다.@@3단계, 그 위에 인플루언서들이 콘텐츠 발행해도 '진짜 사람들이 노는 곳'이라 SNS 노출이 자산이 돼요.@@4단계, 그 SNS 트래픽이 ablur.io 페이지로 흘러오고, 다운로드 → 구독으로.@@핵심은 이거예요 — 모닥불이 한번 깔리면, 그 위에 광고도, 인플루언서도, 콘테스트도 다 얹을 수 있어요. 봇은 그 모닥불의 불씨를 24/7 살려두는 역할.">
+      <div class="sec anim" style="--d:.05s">06</div>
+      <h2 class="title anim" style="--d:.1s">그래서 — ABLUR 구독자랑<br>무슨 상관이냐고요?</h2>
+      <div class="funnel">
+        <div class="fn-row anim" style="--d:.22s"><div class="fn-num">1</div><div class="fn-ttl">디스코드 활성화</div><div class="fn-desc">매주 모닥불 → 대화 참여율 <b>5.4% → 8.1%</b></div></div>
+        <div class="fn-row anim" style="--d:.32s"><div class="fn-num">2</div><div class="fn-ttl">Kai · Mia 페르소나 유입</div><div class="fn-desc">OC 스토리텔러 · 웹툰 크리에이터 모이는 공간</div></div>
+        <div class="fn-row anim" style="--d:.42s"><div class="fn-num">3</div><div class="fn-ttl">인플루언서 콘텐츠 발행</div><div class="fn-desc">활발한 커뮤니티 = SNS 노출 자산</div></div>
+        <div class="fn-row anim" style="--d:.52s"><div class="fn-num">4</div><div class="fn-ttl">ablur.io 다운로드 · 구독</div><div class="fn-desc">PV 4,500 → 다운로드 전환율 10%</div></div>
+      </div>
+      <div class="callout gray anim" style="--d:.65s">모닥불이 깔리면, 그 위에 광고 · 인플루언서 · 콘테스트가 다 얹힙니다.</div>
+      <div class="footer"><span>PROJECT UNMUTE · EMBER BOT</span><span>10 / 14</span></div>
+    </section>
+
+    <!-- 8. 6월 vs 7월 -->
+    <section class="slide" data-notes="그리고 이 봇 진짜 무서운 부분은 이겁니다.@@6월엔 원피스 팬아트 캠페인으로 운영해요. 그런데 7월에 OC 캠페인으로 바꿀 때, 코드는 한 줄도 안 바꿔요. JSON 파일 하나만 갈아끼우면 끝.@@콘셉트 — 원피스든 OC든 SDCC든 — 다 외부 JSON 파일에 분리해놨거든요. 즉, 한 번 만들어두면 평생 재활용. 다음 분기에도, 그 다음 분기에도, 봇은 계속 굴러요.">
+      <div class="sec anim" style="--d:.05s">07</div>
+      <h2 class="title anim" style="--d:.1s">7월 OC 캠페인은 — JSON 한 파일만.</h2>
+      <h3 class="sub anim" style="--d:.18s">콘셉트는 코드에 박지 않고 외부 파일로 분리. 7월 캠페인 시작할 때 코드는 0줄 수정.</h3>
+      <div class="vs">
+        <div class="panel june anim" style="--d:.28s">
+          <div class="lbl">6월</div>
+          <div class="h">원피스 팬아트</div>
+          <div class="filecode">2026-06-onepiece-fanart.json</div>
+          <div class="body">
+            <b>W1</b> 텍스트+이미지<br>
+            <b>W2</b> 이미지<br>
+            <b>W3</b> Reply<br>
+            <b>W4</b> ❤ 카운트
+          </div>
+        </div>
+        <div class="arrow anim" style="--d:.38s">→</div>
+        <div class="panel july anim" style="--d:.46s">
+          <div class="lbl">7월</div>
+          <div class="h">OC 캠페인</div>
+          <div class="filecode">2026-07-oc-campaign.json</div>
+          <div class="body" style="color:#fff">
+            콘셉트만 바꾸고<br><br>
+            코드 변경: <span class="big0">0줄</span>
+          </div>
+        </div>
+      </div>
+      <div class="footer"><span>PROJECT UNMUTE · EMBER BOT</span><span>11 / 14</span></div>
+    </section>
+
+    <!-- 9. 라이브 데모 전환 (다크) -->
+    <section class="slide dark" data-notes="자, 말로만 하면 약하잖아요. 지금 바로 디스코드 띄워서 보여드릴게요.@@(여기서 화면 전환 — 발표자 모니터를 디스코드 + Google Sheet 분할 화면으로)@@오른쪽에 데모 시나리오 종이를 따라가면서 약 4분 진행할게요.">
+      <div class="demo-eyebrow anim" style="--d:.05s">LIVE DEMO</div>
+      <h2 class="title anim" style="--d:.15s" style="color:#fff">말로만 하면 약하니까 —<br>지금 바로 Ember 보여드릴게요.</h2>
+      <div class="demo-channels anim" style="--d:.35s">디스코드 #weekly-mission &nbsp;·&nbsp; Google Sheet &nbsp;·&nbsp; #mod-logs &nbsp;·&nbsp; #hall-of-fame-test</div>
+      <div class="footer"><span style="color:#777">PROJECT UNMUTE · EMBER BOT</span><span style="color:#777">12 / 14 · Live</span></div>
+    </section>
+
+    <!-- 11. 활용 서비스 정리 (NEW) -->
+    <section class="slide" data-notes="이 봇을 만드는 데 쓴 서비스 6개를 정리하면 이렇습니다. 다 무료 또는 거의 무료에 가까운 도구들이에요.@@Discord — 무대 자체. Python(discord.py) — 봇의 런타임. GitHub — 코드 저장소이자 자동 배포 트리거. Railway — 봇을 24/7 살려두는 호스팅, 월 3~5달러. Google Sheets — 출품 데이터를 받는 영구 저장소이자 운영자 확인용 대시보드. Claude — 코드를 같이 짜준 AI 페어 파트너.@@핵심은 — 운영 비용이 사실상 Railway 월 3~5달러 한 개예요. 나머지는 다 무료 또는 회사 계정 안에서 해결 가능.">
+      <div class="sec anim" style="--d:.05s">10</div>
+      <h2 class="title anim" style="--d:.1s">활용한 서비스 — 6개.</h2>
+      <h3 class="sub anim" style="--d:.18s">운영 비용은 사실상 Railway 월 3~5달러 한 줄이에요.</h3>
+      <div class="svc-grid">
+
+        <div class="svc-card anim" style="--d:.26s">
+          <div class="svc-head">
+            <div class="svc-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M20 4a18 18 0 0 0-4.5-1.4l-.2.4a14 14 0 0 0-4.6 0L10.5 2.6A18 18 0 0 0 6 4 19 19 0 0 0 2.6 16.5a18 18 0 0 0 5.5 2.8l1.1-1.7a12 12 0 0 1-1.8-.9l.4-.3a13 13 0 0 0 11 0l.4.3a12 12 0 0 1-1.8.9l1.1 1.7A18 18 0 0 0 23.4 16.5 19 19 0 0 0 20 4z"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/></svg>
+            </div>
+            <div>
+              <div class="svc-name">Discord</div>
+              <div class="svc-role">STAGE</div>
+            </div>
+          </div>
+          <div class="svc-desc">멤버가 출품하고 박제되는 무대. 채널 3개 + 봇 권한 + Intents 설정.</div>
+          <div class="svc-tag">무료 · 운영 계정 hello.ablur</div>
+        </div>
+
+        <div class="svc-card anim" style="--d:.32s">
+          <div class="svc-head">
+            <div class="svc-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            </div>
+            <div>
+              <div class="svc-name">Python</div>
+              <div class="svc-role">RUNTIME</div>
+            </div>
+          </div>
+          <div class="svc-desc">봇의 런타임. discord.py로 이벤트 처리 + apscheduler로 시간 트리거.</div>
+          <div class="svc-tag">discord.py · gspread · apscheduler</div>
+        </div>
+
+        <div class="svc-card anim" style="--d:.38s">
+          <div class="svc-head">
+            <div class="svc-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+            </div>
+            <div>
+              <div class="svc-name">GitHub</div>
+              <div class="svc-role">CODE</div>
+            </div>
+          </div>
+          <div class="svc-desc">코드 저장소이자 Railway 자동 배포 트리거. commit하면 봇이 알아서 재배포.</div>
+          <div class="svc-tag">helloablur/ABLUR-Unmute-Bot · 무료 Private</div>
+        </div>
+
+        <div class="svc-card anim" style="--d:.44s">
+          <div class="svc-head">
+            <div class="svc-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="7" cy="14" r="1.5"/><circle cx="17" cy="14" r="1.5"/><path d="M6 6V4h12v2"/></svg>
+            </div>
+            <div>
+              <div class="svc-name">Railway</div>
+              <div class="svc-role">HOST</div>
+            </div>
+          </div>
+          <div class="svc-desc">봇을 24/7 살려두는 호스팅. 환경변수 11개 · Restart 한 번이면 새 배포.</div>
+          <div class="svc-tag">Hobby Plan · 약 $3~5/월</div>
+        </div>
+
+        <div class="svc-card anim" style="--d:.5s">
+          <div class="svc-head">
+            <div class="svc-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>
+            </div>
+            <div>
+              <div class="svc-name">Google Sheets</div>
+              <div class="svc-role">DATA</div>
+            </div>
+          </div>
+          <div class="svc-desc">출품 데이터 영구 저장소 + 운영자 확인용 대시보드. Service Account API 접근.</div>
+          <div class="svc-tag">Sheets API + Drive API · 무료</div>
+        </div>
+
+        <div class="svc-card anim" style="--d:.56s">
+          <div class="svc-head">
+            <div class="svc-ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 2l2.4 6.8L21 11.2l-6.6 2.4L12 20l-2.4-6.4L3 11.2l6.6-2.4z"/></svg>
+            </div>
+            <div>
+              <div class="svc-name">Claude (AI)</div>
+              <div class="svc-role">PAIR</div>
+            </div>
+          </div>
+          <div class="svc-desc">바이브 코딩 페어 파트너. 700줄 코드 작성 + 에러 진단 + 정책 옵션 비교.</div>
+          <div class="svc-tag">Claude Pro · $20/월</div>
+        </div>
+
+      </div>
+      <div class="callout gray anim" style="--d:.7s">스택 합계 — 월 약 <b class="hl">$25 이내</b>. 사실상 운영 도구는 Railway 한 줄.</div>
+      <div class="footer"><span>PROJECT UNMUTE · EMBER BOT</span><span>13 / 14</span></div>
+    </section>
+
+    <!-- 12. 마무리 -->
+    <section class="slide dark" data-notes="다음 단계는 6월 2일, 첫 멤버가 진짜 출품하는 날입니다.@@정리하면 14일짜리 바이브 코딩 프로젝트, 운영자 인풋은 주 5분, 7월 캠페인은 코드 0줄 수정.@@AI랑 페어로 일하면 비개발자도 운영 봇 하나를 손에 쥐는 시대가 진짜 왔어요.@@들어주셔서 감사합니다. 질문 있으세요?">
+      <div class="sec anim" style="--d:.05s" style="color:var(--blue)">WRAP UP</div>
+      <h2 class="title anim" style="--d:.12s" style="color:#fff">다음 단계는 — 6/2, 첫 멤버.</h2>
+      <div class="stats">
+        <div class="stat-card anim" style="--d:.24s"><div class="stat-n">14</div><div class="stat-l">days to build</div></div>
+        <div class="stat-card anim" style="--d:.34s"><div class="stat-n">5</div><div class="stat-l">minutes / week<span class="small">(운영 인풋)</span></div></div>
+        <div class="stat-card anim" style="--d:.44s"><div class="stat-n">0</div><div class="stat-l">lines<span class="small">(7월 캠페인 코드 수정)</span></div></div>
+      </div>
+      <div class="wrap-quote anim" style="--d:.6s">AI랑 페어로 일하면, 비개발자도 운영 봇 하나를 손에 쥐는 시대.</div>
+      <div class="wrap-tq anim" style="--d:.72s">감사합니다 &nbsp;·&nbsp; Q&amp;A</div>
+      <div class="footer"><span style="color:#777">PROJECT UNMUTE · EMBER BOT</span><span style="color:#777">14 / 14 · Thanks</span></div>
+    </section>
+
+  </div>
+</div>
+
+<aside class="notes" id="notes">
+  <h4>SPEAKER NOTES</h4>
+  <div id="notesBody"></div>
+</aside>
+
+<div class="hud"><div class="bar" id="bar"></div></div>
+<div class="pageno" id="pageno">1 / 12</div>
+<div class="help">← → / Space  ·  <b>N</b> notes  ·  <b>F</b> fullscreen  ·  <b>Home</b> 처음으로</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll(".slide"));
+  const bar = document.getElementById("bar");
+  const pageno = document.getElementById("pageno");
+  const notes = document.getElementById("notes");
+  const notesBody = document.getElementById("notesBody");
+  let idx = 0;
+  let busy = false;
+
+  function show(i, dir = 1){
+    if(busy) return;
+    const newIdx = Math.max(0, Math.min(slides.length-1, i));
+    if(newIdx === idx) return;
+    busy = true;
+    const prev = slides[idx];
+    const next = slides[newIdx];
+    prev.classList.remove("active");
+    prev.classList.add(dir > 0 ? "leaving-left" : "leaving-right");
+    next.classList.remove("leaving-left","leaving-right","entering-left");
+    if(dir < 0) next.classList.add("entering-left");
+    void next.offsetWidth;
+    next.classList.remove("entering-left");
+    next.classList.add("active");
+    idx = newIdx;
+    bar.style.width = ((idx+1)/slides.length*100)+"%";
+    pageno.textContent = (idx+1)+" / "+slides.length;
+    const raw = slides[idx].getAttribute("data-notes") || "";
+    notesBody.innerHTML = raw.split("@@").map(p=>"<p>"+p.trim().replace(/</g,"&lt;")+"</p>").join("");
+    setTimeout(()=>{
+      prev.classList.remove("leaving-left","leaving-right");
+      busy = false;
+    }, 600);
+  }
+  function next(){ show(idx+1, 1); }
+  function prev(){ show(idx-1, -1); }
+  document.addEventListener("keydown", (e)=>{
+    if(e.key==="ArrowRight" || e.key===" " || e.key==="PageDown"){ e.preventDefault(); next(); }
+    else if(e.key==="ArrowLeft" || e.key==="PageUp"){ e.preventDefault(); prev(); }
+    else if(e.key==="Home"){ e.preventDefault(); show(0,-1); }
+    else if(e.key==="End"){ e.preventDefault(); show(slides.length-1, 1); }
+    else if(e.key==="n" || e.key==="N"){ notes.classList.toggle("on"); }
+    else if(e.key==="f" || e.key==="F"){
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+  document.addEventListener("click", (e)=>{
+    if(e.target.closest("#notes")) return;
+    const x = e.clientX;
+    if(x > window.innerWidth/2) next();
+    else prev();
+  });
+  const raw0 = slides[0].getAttribute("data-notes") || "";
+  notesBody.innerHTML = raw0.split("@@").map(p=>"<p>"+p.trim().replace(/</g,"&lt;")+"</p>").join("");
+  bar.style.width = (1/slides.length*100)+"%";
+</script>
+
+</body>
+</html>
+            
